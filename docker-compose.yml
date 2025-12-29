@@ -1,0 +1,158 @@
+# ============================================================================
+# DOCKER COMPOSE - BurpSuite HTML to DOCX Converter
+# ============================================================================
+# Secure configuration with:
+#   - Read-only root filesystem
+#   - No new privileges
+#   - Dropped capabilities
+#   - Resource limits
+#   - Security options
+# ============================================================================
+
+services:
+  # --------------------------------------------------------------------------
+  # Main converter service
+  # --------------------------------------------------------------------------
+  burp-converter:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+    image: burp-converter:latest
+    container_name: burp-converter
+
+    # Security: Run as non-root
+    user: "1000:1000"
+
+    # Security: Read-only filesystem with specific writable paths
+    read_only: true
+    tmpfs:
+      - /tmp:size=100M,mode=1777
+
+    # Security: Drop all capabilities
+    cap_drop:
+      - ALL
+
+    # Security: Prevent privilege escalation
+    security_opt:
+      - no-new-privileges:true
+
+    # Resource limits
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+
+    # Volume mounts
+    volumes:
+      # Input: Read-only for security
+      - ./input:/app/input:ro
+      # Output: Read-write for results
+      - ./output:/app/output:rw
+      # Network reports: Read-only (optional)
+      - ./network_reports:/app/network_reports:ro
+
+    # Environment variables
+    environment:
+      - PYTHONUNBUFFERED=1
+      - PYTHONDONTWRITEBYTECODE=1
+
+    # Default command (override with docker-compose run)
+    command: ["--help"]
+
+  # --------------------------------------------------------------------------
+  # Quick conversion service (one-shot)
+  # --------------------------------------------------------------------------
+  convert:
+    extends:
+      service: burp-converter
+    container_name: burp-convert-run
+    profiles:
+      - convert
+
+  # --------------------------------------------------------------------------
+  # Hardened service (maximum security)
+  # --------------------------------------------------------------------------
+  burp-converter-hardened:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: hardened
+    image: burp-converter:hardened
+    container_name: burp-converter-hardened
+
+    user: "1000:1000"
+    read_only: true
+
+    tmpfs:
+      - /tmp:size=50M,mode=1777,noexec,nosuid
+
+    cap_drop:
+      - ALL
+
+    security_opt:
+      - no-new-privileges:true
+
+    # Stricter resource limits
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+
+    volumes:
+      - ./input:/app/input:ro
+      - ./output:/app/output:rw
+      - ./network_reports:/app/network_reports:ro
+
+    profiles:
+      - hardened
+
+    command: ["--help"]
+
+# ============================================================================
+# Networks (isolated)
+# ============================================================================
+networks:
+  default:
+    driver: bridge
+    driver_opts:
+      com.docker.network.bridge.enable_ip_masquerade: "false"
+
+# ============================================================================
+# USAGE EXAMPLES:
+# ============================================================================
+#
+# Build the image:
+#   docker-compose build
+#
+# Show help:
+#   docker-compose run --rm burp-converter --help
+#
+# List input files:
+#   docker-compose run --rm burp-converter --list
+#
+# Convert a report:
+#   docker-compose run --rm burp-converter -i report.html -o output.docx
+#
+# Convert with filters:
+#   docker-compose run --rm burp-converter -i report.html -s high,medium -e
+#
+# Full enterprise report:
+#   docker-compose run --rm burp-converter -i report.html \
+#     -s high,medium,low -n \
+#     --company "MyCompany" \
+#     --title "Security Assessment" \
+#     --validate
+#
+# Use hardened version:
+#   docker-compose --profile hardened run --rm burp-converter-hardened -i report.html
+#
+# ============================================================================
