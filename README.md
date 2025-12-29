@@ -34,6 +34,17 @@ Transform raw BurpSuite HTML scan outputs into polished, enterprise-quality secu
 
 ## Quick Start
 
+# 1. Build
+
+```
+docker-compose build
+```
+# 2. Create directories & add your HTML report
+```
+mkdir -p input output
+cp your-report.html input/
+```
+
 ```bash
 # Pull the image
 docker pull nwclasantha/burp-converter:latest
